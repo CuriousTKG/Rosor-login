@@ -30,8 +30,29 @@ const IDENTIFIER_BYTES = 32;
 export const DEFAULT_INACTIVITY_MINUTES = 60;
 export const HIGHER_RISK_INACTIVITY_MINUTES = 15;
 
-/** §8.1: twelve hours from authentication, whatever happens in between. */
-export const ABSOLUTE_LIFETIME_HOURS = 12;
+/**
+ * §8.1: seven days from AUTHENTICATION, whatever happens in between.
+ *
+ * FROM AUTHENTICATION, NOT FROM WHEN THE SESSION STARTED, and that distinction
+ * is the whole reason for this number. `authTime` is the ID token's
+ * `auth_time` — when the person last actually authenticated at the provider —
+ * and silent single sign-on does not renew it. A session created today can
+ * therefore carry an authentication from days ago.
+ *
+ * This was twelve hours. When the identity session became seven days (1
+ * October 2026) and this did not follow, every single sign-on more than twelve
+ * hours after that authentication produced an application session ALREADY past
+ * its deadline: created, written, and then refused on its first request. The
+ * person signed in successfully and was returned to the sign-in page, and
+ * pressing the button again did the same thing, because the authentication
+ * being carried forward never got any newer. Only "sign in as a different
+ * account" escaped it, by forcing a fresh authentication.
+ *
+ * Matching the identity session's absolute limit is what stops a session being
+ * born expired. The INACTIVITY limit above is unchanged and remains what ends
+ * an idle session.
+ */
+export const ABSOLUTE_LIFETIME_HOURS = 7 * 24;
 
 export interface SessionRecord {
   /**

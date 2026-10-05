@@ -188,10 +188,10 @@ describe('timeouts (§8.1)', () => {
   });
 
   /**
-   * Twelve hours from AUTHENTICATION, so continuous activity cannot extend a
-   * session indefinitely — which is the whole point of an absolute limit.
+   * From AUTHENTICATION, so continuous activity cannot extend a session
+   * indefinitely — which is the whole point of an absolute limit.
    */
-  it('expires 12 hours after authentication however active the user has been', async () => {
+  it('expires at the absolute limit however active the user has been', async () => {
     const authTime = new Date(Date.now() - (ABSOLUTE_LIFETIME_HOURS + 1) * 3600_000);
     const started = await sessions.start(signedIn({ authTime }));
 
@@ -204,7 +204,7 @@ describe('timeouts (§8.1)', () => {
 
   /** Reported in the order that sends an operator to the right place. */
   it('reports the absolute limit ahead of inactivity when both have passed', () => {
-    const authTime = new Date(Date.now() - 20 * 3600_000);
+    const authTime = new Date(Date.now() - (ABSOLUTE_LIFETIME_HOURS + 1) * 3600_000);
     expect(
       expiryOf({
         idHash: 'x',
@@ -218,6 +218,26 @@ describe('timeouts (§8.1)', () => {
         higherRisk: false,
       }),
     ).toBe('absolute');
+  });
+
+  /**
+   * THE DEFECT THIS NUMBER EXISTS TO PREVENT.
+   *
+   * Silent single sign-on carries the ORIGINAL authentication forward — it
+   * does not renew `auth_time` — so a session started this second can be born
+   * holding an authentication from days ago. While the absolute limit was
+   * shorter than the identity session behind it, such a session was past its
+   * deadline the moment it was written: accepted at sign-in, then refused on
+   * its very first request.
+   *
+   * Fails at ABSOLUTE_LIFETIME_HOURS = 12, which is how it reached production.
+   */
+  it('is usable when single sign-on carries an authentication from a day ago', async () => {
+    const authTime = new Date(Date.now() - 36 * 3600_000);
+    const started = await sessions.start(signedIn({ authTime }));
+
+    const lookup = await sessions.read(asRequestCookie(started.cookie));
+    expect(lookup.status).toBe('active');
   });
 
   it('deletes an expired session as it reads it', async () => {
